@@ -22,6 +22,9 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: _src/cli/go.sum
 
+      - name: Install UPX
+        run: sudo apt-get install -y upx-ucl
+
       - name: Build binaries
         working-directory: _src/cli
         run: |
@@ -36,6 +39,10 @@ jobs:
             OUT="shadmin-cli-${GOOS}-${GOARCH}${EXT}"
             echo "→ Building $OUT"
             GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o ../../bin/$OUT .
+            # UPX does not support darwin (macOS) binaries on Linux
+            if [ "$GOOS" != "darwin" ]; then
+              upx --best --lzma ../../bin/$OUT
+            fi
           done
           ls -lh ../../bin/
 
