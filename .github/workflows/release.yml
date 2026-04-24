@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone shadmin CLI source
+        run: git clone --depth 1 https://github.com/ahaodev/shadmin.git _src
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: _src/cli/go.sum
+
+      - name: Build binaries
+        working-directory: _src/cli
+        run: |
+          mkdir -p ../../dist
+          VERSION=${GITHUB_REF#refs/tags/}
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA}"
+          for TARGET in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            GOOS=${TARGET%/*}
+            GOARCH=${TARGET#*/}
+            EXT=""
+            [ "$GOOS" = "windows" ] && EXT=".exe"
+            OUT="shadmin-cli-${GOOS}-${GOARCH}${EXT}"
+            echo "→ Building $OUT"
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o ../../dist/$OUT .
+          done
+          ls -lh ../../dist/
+
+      - name: Sync docs
+        run: |
+          cp _src/cli/README.md README.md
+          cp _src/cli/skill/shadmin-cli/SKILL.md SKILL.md
+          mkdir -p examples
+          cp _src/cli/skill/shadmin-cli/examples/* examples/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No doc changes."
+          else
+            git commit -m "docs: sync from ahaodev/shadmin@${GITHUB_REF#refs/tags/}"
+            git push
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          gh release create "${VERSION}" \
+            --title "shadmin-cli ${VERSION}" \
+            --generate-notes \
+            dist/*
