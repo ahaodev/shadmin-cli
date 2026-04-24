@@ -25,7 +25,7 @@ jobs:
       - name: Build binaries
         working-directory: _src/cli
         run: |
-          mkdir -p ../../dist
+          mkdir -p ../../bin
           VERSION=${GITHUB_REF#refs/tags/}
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA}"
           for TARGET in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
@@ -35,12 +35,13 @@ jobs:
             [ "$GOOS" = "windows" ] && EXT=".exe"
             OUT="shadmin-cli-${GOOS}-${GOARCH}${EXT}"
             echo "→ Building $OUT"
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o ../../dist/$OUT .
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o ../../bin/$OUT .
           done
-          ls -lh ../../dist/
+          ls -lh ../../bin/
 
-      - name: Sync docs
+      - name: Sync docs and binaries
         run: |
+          VERSION=${GITHUB_REF#refs/tags/}
           cp _src/cli/README.md README.md
           cp _src/cli/skill/shadmin-cli/SKILL.md SKILL.md
           mkdir -p examples
@@ -49,11 +50,11 @@ jobs:
           rm -rf _src
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md SKILL.md examples/
+          git add README.md SKILL.md examples/ bin/
           if git diff --staged --quiet; then
-            echo "No doc changes."
+            echo "No changes."
           else
-            git commit -m "docs: sync from ahaodev/shadmin@${GITHUB_REF#refs/tags/}"
+            git commit -m "release: shadmin-cli ${VERSION}"
             git push origin HEAD:main
           fi
 
@@ -65,4 +66,4 @@ jobs:
           gh release create "${VERSION}" \
             --title "shadmin-cli ${VERSION}" \
             --generate-notes \
-            dist/*
+            bin/*
